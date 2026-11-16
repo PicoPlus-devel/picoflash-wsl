@@ -61,9 +61,10 @@ Before it connects to the board, the script:
    `usbipd.exe attach --wsl --busid <busid>` and waits up to 10 seconds for the
    probe to appear.
 3. Detects the chip, unless one was named with `-c`. It tries the OpenOCD target
-   configurations `rp2350`, `rp2350-riscv` and `rp2040`, in that order, and uses
+   configurations `rp2040`, `rp2350` and `rp2350-riscv`, in that order, and uses
    the first one through which core 0 can be examined. Each attempt takes less
-   than a second and neither halts nor resets the board.
+   than a second and neither halts nor resets the board. The order matters; see
+   [RP2040 rescue port](#notes) under Notes.
 
 It then programs the board in a single OpenOCD session:
 
@@ -460,6 +461,15 @@ picoflash.sh backup.bin
   the new image. A RISC-V image can be programmed into a board that runs Arm code,
   and the other way round. The bootrom switches architecture when it boots the
   new image.
+- **RP2040 rescue port.** The RP2040 has three debug ports on one SWD bus: one
+  for each core and a rescue port. The `rp2040` configuration selects the port of
+  a core by its id (SWD multidrop), and other chips ignore that selection. The
+  `rp2350` configurations select no port, so on an RP2040 all three ports, the
+  rescue port included, receive their power-up request. A rescue port with that
+  request set holds the chip in reset until the board is power-cycled, and no
+  configuration can reach the cores. Chip detection therefore tries `rp2040`
+  first. Running OpenOCD by hand with an `rp2350` configuration on an RP2040 board
+  has the same effect.
 - **Crystal frequency.** The clock check assumes a 12 MHz crystal, as on the
   Raspberry Pi boards and most others. With a different crystal the calculated
   frequency is wrong, and an overclocked board may not be slowed down enough for
@@ -483,7 +493,7 @@ picoflash.sh backup.bin
 | `usbipd attach failed; share the probe once from an elevated Windows prompt with: usbipd bind --busid <busid>` | The probe has not been shared yet, or was moved to another USB port. Run the `usbipd bind` command shown, as administrator. |
 | `the probe was attached but did not appear in WSL` | WSL did not see the device within 10 seconds. Run the script again, or check `lsusb` and `dmesg` in WSL. |
 | `no Debug Probe (2e8a:000c) found in WSL; attach it from Windows with: usbipd attach --wsl --busid <busid>` | The probe is not attached, and the script did not attach it because `-n` was given or `usbipd.exe` is not on `PATH` (see [Step 1](#step-1-install-usbipd-win-and-share-the-probe)). |
-| `no RP2040 or RP2350 answered; check the SWD wiring and that the board is powered` | The probe works, but no chip responded. Check that SWCLK, SWDIO and GND are connected and not swapped, and that the target is powered. Try a lower clock with `-s 1000`. |
+| `no RP2040 or RP2350 answered; check the SWD wiring and that the board is powered` | The probe works, but no chip responded. Check that SWCLK, SWDIO and GND are connected and not swapped, and that the target is powered. Try a lower clock with `-s 1000`. An RP2040 that was earlier accessed with an `rp2350` configuration is held in reset; power-cycle the board (see [Notes](#notes)). |
 | `OpenOCD cannot program UF2 files; use the .elf or .bin from the same build` | Use the `.elf`, `.bin` or `.hex` from the same build. |
 | `openocd not found in PATH` | Install OpenOCD ([Step 2](#step-2-install-openocd)), or add its directory to `PATH`. |
 | OpenOCD reports a permission or access error | Your user cannot open the probe's USB device. Install the udev rules and join the `plugdev` group ([Step 4](#step-4-give-your-user-access-to-the-probe)). |

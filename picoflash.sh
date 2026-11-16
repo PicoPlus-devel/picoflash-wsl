@@ -44,9 +44,17 @@ Options:
 
 Chip detection:
   Without -c, the script connects to the board with the OpenOCD target
-  configurations rp2350, rp2350-riscv and rp2040, in that order, and uses the
+  configurations rp2040, rp2350 and rp2350-riscv, in that order, and uses the
   first one through which core 0 can be examined. Each attempt takes less than
   a second and does not halt or reset the board.
+
+  The RP2040 has three debug ports on one SWD bus: one per core and a rescue
+  port. The rp2040 configuration selects a core's port by its id (SWD
+  multidrop), which other chips ignore. The RP2350 configurations select no
+  port, so on an RP2040 all three ports, the rescue port included, take their
+  power-up request. A rescue port with that request set holds the chip in
+  reset until the board is power-cycled. The rp2040 configuration is therefore
+  tried first.
 
   An RP2350 runs either its Arm or its RISC-V cores, and the debugger can only
   reach the cores that are currently running. The configuration therefore
@@ -165,7 +173,8 @@ attach_probe() {
 
 detect_chip() {
 	local chip
-	for chip in rp2350 rp2350-riscv rp2040; do
+	# rp2040 must come first: see "Chip detection" in the usage text.
+	for chip in rp2040 rp2350 rp2350-riscv; do
 		if grep -q "core0\] Examination succeed" <<< "$(ocd "$chip" "init; exit")"; then
 			echo "$chip"
 			return
